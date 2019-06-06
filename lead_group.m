@@ -558,6 +558,7 @@ try % zoom on coordinates.
 catch
     zoom(3);
 end
+
 % show VAT-mapping
 if options.expstatvat.do % export to nifti volume
     pobj.plotFigureH=resultfig;
@@ -1044,7 +1045,7 @@ for vi=get(handles.vilist,'Value') % get volume interactions for each patient fr
         ptcnt=ptcnt+1;
 
     end
-    vc_labels{end+1}=[ea_stripex(M.stats(pt).ea_stats.atlases.names{vi}),': ',vtavsefield,' impact'];
+    vc_labels{end+1}=[ea_stripext(M.stats(pt).ea_stats.atlases.names{vi}),': ',vtavsefield,' impact'];
 
     ptcnt=1;
     vicnt=vicnt+1;
@@ -1092,62 +1093,80 @@ setappdata(gcf,'M',M);
 ea_refresh_lg(handles);
 
 
-% --- Executes on button press in moveptdownbutton.
-function moveptdownbutton_Callback(hObject, eventdata, handles)
-% hObject    handle to moveptdownbutton (see GCBO)
+% --- Executes on button press in moveptupbutton.
+function moveptupbutton_Callback(hObject, eventdata, handles)
+% hObject    handle to moveptupbutton (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
 M=getappdata(gcf,'M');
 whichmoved=get(handles.patientlist,'Value');
-if length(whichmoved)>1; return; end % more than one selected..
-if whichmoved==1 % first entry anyways
+
+if whichmoved(1)==1 % first entry anyways
     return
 end
+
 ix=1:length(M.patient.list);
 ix(whichmoved)=ix(whichmoved)-1;
 ix(whichmoved-1)=ix(whichmoved-1)+1;
 
 M.patient.list=M.patient.list(ix);
 M.patient.group=M.patient.group(ix);
+M.ui.listselect=whichmoved-1;
+for c=1:length(M.clinical.vars)
+    M.clinical.vars{c} = M.clinical.vars{c}(ix,:);
+end
 try
-    M=rmfield(M,'stats');
+    M.S = M.S(ix);
 end
 try
     M=rmfield(M,'elstruct');
 end
+try
+    M=rmfield(M,'stats');
+end
 setappdata(gcf,'M',M);
-set(handles.patientlist,'Value',whichmoved-1);
 
+set(handles.patientlist,'Value',whichmoved-1);
 ea_refresh_lg(handles);
 
-% --- Executes on button press in moveptupbutton.
-function moveptupbutton_Callback(hObject, eventdata, handles)
-% hObject    handle to moveptupbutton (see GCBO)
+
+% --- Executes on button press in moveptdownbutton.
+function moveptdownbutton_Callback(hObject, eventdata, handles)
+% hObject    handle to moveptdownbutton (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
 
 M=getappdata(gcf,'M');
 whichmoved=get(handles.patientlist,'Value');
-if length(whichmoved)>1; return; end % more than one selected..
-if whichmoved==length(M.patient.list) % last entry anyways
+
+if whichmoved(end)==length(M.patient.list) % last entry anyways
     return
 end
+
 ix=1:length(M.patient.list);
 ix(whichmoved)=ix(whichmoved)+1;
 ix(whichmoved+1)=ix(whichmoved+1)-1;
 
 M.patient.list=M.patient.list(ix);
 M.patient.group=M.patient.group(ix);
+M.ui.listselect=whichmoved+1;
+for c=1:length(M.clinical.vars)
+    M.clinical.vars{c} = M.clinical.vars{c}(ix,:);
+end
 try
-    M=rmfield(M,'stats');
+    M.S = M.S(ix);
 end
 try
     M=rmfield(M,'elstruct');
 end
+try
+    M=rmfield(M,'stats');
+end
 setappdata(gcf,'M',M);
-set(handles.patientlist,'Value',whichmoved+1);
 
+set(handles.patientlist,'Value',whichmoved+1);
 ea_refresh_lg(handles);
+
 
 % --- Executes on button press in calculatebutton.
 function calculatebutton_Callback(hObject, eventdata, handles)
@@ -1184,7 +1203,7 @@ for pt=selection
 
     % own fileparts to support windows/mac/linux slashes even if they come
     % from a different OS.
-    if isempty(strfind(M.patient.list{pt},'/'))
+    if ~contains(M.patient.list{pt},'/')
         lookfor='\';
     else
         lookfor='/';
@@ -1762,26 +1781,33 @@ function detachbutton_Callback(hObject, eventdata, handles)
 % handles    structure with handles and user data (see GUIDATA)
 choice = questdlg('Would you really like to detach the group data from the single-patient data? This means that changes to single-patient reconstructions will not be updated into the group analysis anymore. This should only be done once all patients have been finally localized and an analysis needs to be fixed (e.g. after publication or when working in collaborations). Please be aware that this step cannot be undone!', ...
     'Detach Group data from single patient data...', ...
-    'No, abort.','Yes, sure!','No, abort.');
+    'No, abort.','Yes, sure!','Yes and copy localizations/VTAs please.','No, abort.');
 % Handle response
 switch choice
     case 'No, abort.'
         return
-    case 'Yes, sure!'
+    case {'Yes, sure!','Yes and copy localizations/VTAs please.'}
 
         M=getappdata(gcf,'M');
-
+        ea_dispercent(0,'Detaching group file');
         for pt=1:length(M.patient.list)
-
             slashes=strfind(M.patient.list{pt},'/');
             if isempty(slashes)
                 slashes=strfind(M.patient.list{pt},'\');
             end
             ptname=M.patient.list{pt}(max(slashes)+1:end);
+            if strcmp('Yes and copy localizations/VTAs please.',choice)
+                odir=[M.ui.groupdir,ptname,filesep];
+                ea_mkdir([odir,'stimulations']);
+                copyfile([M.patient.list{pt},filesep,'ea_reconstruction.mat'],[odir,'ea_reconstruction.mat']);
+                copyfile([M.patient.list{pt},filesep,'stimulations',filesep,'gs_',M.guid],[odir,'stimulations',filesep,'gs_',M.guid]);
+            end
 
             M.patient.list{pt}=ptname;
 
+            ea_dispercent(pt/length(M.patient.list));
         end
+        ea_dispercent(1,'end');
         M.ui.detached=1;
 
 end
@@ -2043,34 +2069,28 @@ assignin('base','stats',stats);
 % perform correlations:
 if size(stats.corrcl,2)==1 % one value per patient
 
-        if ~isempty(stats.fccorr.both)
-            %ea_corrplot([stats.corrcl,stats.fccorr.both],'Fibercounts, both hemispheres',stats.fc_labels);
-            ea_corrplot([stats.corrcl,stats.fccorr.nboth],'FC_BH',stats.fc_labels,handles);
-        end
-%         if ~isempty(stats.fccorr.right)
-%             %ea_corrplot([stats.corrcl,stats.fccorr.right],'Fibercounts, right hemisphere',stats.fc_labels);
-%             ea_corrplot([stats.corrcl,stats.fccorr.nright],'FC_RH',stats.fc_labels,handles);
-%         end
-%         if ~isempty(stats.fccorr.left)
-%             %ea_corrplot([stats.corrcl,stats.fccorr.left],'Fibercounts, left hemisphere',stats.fc_labels);
-%             ea_corrplot([stats.corrcl,stats.fccorr.nleft],'FC_LH',stats.fc_labels,handles);
-%         end
+    if ~isempty(stats.fccorr.both)
+        ea_corrplot(stats.corrcl,stats.fccorr.nboth,{'FC_BH',stats.fc_labels(:)});
+    end
+    if ~isempty(stats.fccorr.right)
+        ea_corrplot(stats.corrcl,stats.fccorr.nright,{'FC_RH',stats.fc_labels(:)});
+    end
+    if ~isempty(stats.fccorr.left)
+        ea_corrplot(stats.corrcl,stats.fccorr.nleft,{'FC_LH',stats.fc_labels(:)});
+    end
 
 elseif size(stats.corrcl,2)==2 % one value per hemisphere
 
-        if ~isempty(stats.fccorr.both)
-            %ea_corrplot([stats.corrcl(:),[stats.fccorr.right;stats.fccorr.left]],'Fibercounts, both hemispheres',stats.fc_labels);
-            ea_corrplot([stats.corrcl(:),[stats.fccorr.right;stats.fccorr.left]],'FC_BH',stats.fc_labels,handles);
-        end
-    %     if ~isempty(stats.fccorr.right)
-    %         %ea_corrplot([stats.corrcl(:,1),stats.fccorr.right],'Fibercounts, right hemisphere',stats.fc_labels);
-    %         ea_corrplot([stats.corrcl(:,1),stats.fccorr.nright],'FC_RH',stats.fc_labels,handles);
-    %     end
-    %     if ~isempty(stats.fccorr.left)
-    %         %ea_corrplot([stats.corrcl(:,2),stats.fccorr.left],'Fibercounts, left hemisphere',stats.fc_labels);
-    %         ea_corrplot([stats.corrcl(:,2),stats.fccorr.nleft],'FC_LH',stats.fc_labels,handles);
-    %     end
-    %
+    if ~isempty(stats.fccorr.both)
+        ea_corrplot(stats.corrcl(:),[stats.fccorr.right;stats.fccorr.left],{'FC_BH',stats.fc_labels(:)});
+    end
+    if ~isempty(stats.fccorr.right)
+        ea_corrplot(stats.corrcl(:,1),stats.fccorr.nright,{'FC_RH',stats.fc_labels(:)});
+    end
+    if ~isempty(stats.fccorr.left)
+        ea_corrplot(stats.corrcl(:,2),stats.fccorr.nleft,{'FC_LH',stats.fc_labels(:)});
+    end
+
 else
     ea_error('Please select a regressor with one value per patient or per hemisphere to perform this correlation.');
 end

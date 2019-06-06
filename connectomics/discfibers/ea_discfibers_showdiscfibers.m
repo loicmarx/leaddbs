@@ -72,14 +72,16 @@ negits=sort(negits,'ascend');
 posthresh=posits(round(length(posits)*pospredthreshold));
 negthresh=negits(round(length(negits)*negpredthreshold));
 
+discfiberID = '';
+
 % Save the original values for reusing in slider
-setappdata(resultfig, 'vals', vals);
-setappdata(resultfig, 'fibcell', fibcell);
-setappdata(resultfig, 'showfibersset', showfibersset);
-setappdata(resultfig, 'pospredthreshold', pospredthreshold);
-setappdata(resultfig, 'negpredthreshold', negpredthreshold);
-setappdata(resultfig, 'posits', posits);
-setappdata(resultfig, 'negits', negits);
+setappdata(resultfig, ['vals',discfiberID], vals);
+setappdata(resultfig, ['fibcell',discfiberID], fibcell);
+setappdata(resultfig, ['showfibersset',discfiberID], showfibersset);
+setappdata(resultfig, ['pospredthreshold',discfiberID], pospredthreshold);
+setappdata(resultfig, ['negpredthreshold',discfiberID], negpredthreshold);
+setappdata(resultfig, ['posits',discfiberID], posits);
+setappdata(resultfig, ['negits',discfiberID], negits);
 
 switch showfibersset
     case 'positive'
@@ -125,6 +127,14 @@ switch showfibersset
 end
 
 alphas(round(fibcolorInd)>=poslowerBound) = 1;
+
+% only show right side
+% for i=1:length(tfibcell)
+%     if any(tfibcell{i}(:,1)<0)
+%         alphas(i) = 0;
+%     end
+% end
+
 fibalpha=mat2cell(alphas,ones(size(fibcolorInd,1),1));
 
 % Plot fibers
@@ -139,8 +149,6 @@ fibcolor=mat2cell(colors,ones(size(fibcolorInd)));
 % Set fiber colors and alphas
 [h.FaceColor]=fibcolor{:};
 [h.FaceAlpha]=fibalpha{:};
-
-setappdata(resultfig, 'discfibers', h);
 
 % Set colorbar tick positions and labels
 cbvals = tvals(logical(alphas));
@@ -167,14 +175,24 @@ switch showfibersset
         ticklabel = arrayfun(@(x) num2str(x,'%.2f'), ticklabel, 'Uni', 0);
 end
 
+figTitle = 'discfibers';
+discfibersname = ['discfibers', discfiberID];
+cbfigname = ['cbfig', discfiberID];
+discfiberscontrolname = ['discfiberscontrol', discfiberID];
+
 % Plot colorbar
 cbfig = ea_plot_colorbar(cbmap, [], 'h', '', tick, ticklabel);
-set(cbfig, 'NumberTitle', 'off');
-setappdata(resultfig, 'cbfig', cbfig);
+set(cbfig, 'NumberTitle', 'off',  'Name', ['Colorbar: ', figTitle]);
 
 % Discriminative fiber control
-discfiberscontrol = ea_discfibers_control(resultfig);
-setappdata(resultfig, 'discfiberscontrol', discfiberscontrol);
+discfiberscontrol = ea_discfibers_control(resultfig, discfiberID);
+set(discfiberscontrol, 'NumberTitle', 'off', 'Name', ['Control: ', figTitle]);
+setappdata(discfiberscontrol, 'discfiberID', discfiberID);
+
+setappdata(resultfig, discfibersname, h);
+setappdata(resultfig, cbfigname, cbfig);
+setappdata(resultfig, discfiberscontrolname, discfiberscontrol);
+set(0,'CurrentFigure',resultfig)
 
 
 function str=pointtodash(str)
